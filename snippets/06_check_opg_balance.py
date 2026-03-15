@@ -155,8 +155,16 @@ def inspect_wallet() -> None:
         logger.warning(f"Could not fetch Permit2 allowance: {e}")
 
     eth_balance = float(Web3.from_wei(eth_balance_wei, "ether"))
-    opg_balance = opg_balance_raw / (10 ** opg_decimals)
-    permit2_allowance = permit2_allowance_raw / (10 ** opg_decimals)
+
+    # Use integer arithmetic for ERC-20 balances — float division loses precision
+    # at the wei level and can cause wrong comparisons (e.g. 0.9999...wei rounds
+    # up to 1.0 in float, misclassifying a wallet as "Ready").
+    # Web3.from_wei returns a Decimal, which is exact.
+    from decimal import Decimal
+    opg_balance: Decimal = Web3.from_wei(opg_balance_raw, "ether") if opg_decimals == 18 \
+        else Decimal(opg_balance_raw) / Decimal(10 ** opg_decimals)
+    permit2_allowance: Decimal = Web3.from_wei(permit2_allowance_raw, "ether") if opg_decimals == 18 \
+        else Decimal(permit2_allowance_raw) / Decimal(10 ** opg_decimals)
 
     # Determine status
     if opg_balance >= 1.0:

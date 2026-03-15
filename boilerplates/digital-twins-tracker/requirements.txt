@@ -1,1 +1,4 @@
-... (content from view_file Step Id: 119)
+opengradient>=0.1.0
+python-dotenv>=1.0.0
+web3>=6.0.0
+eth-account>=0.11.0

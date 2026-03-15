@@ -64,7 +64,12 @@ class InferenceResult:
 # ---------------------------------------------------------------------------
 def run_ml_inference_demo() -> None:
     """Run the demo model through all three inference modes."""
-    client = get_client()
+    # Per official docs: ML inference uses standalone og.Alpha, NOT og.Client
+    # docs.opengradient.ai/developers/sdk/ml_inference.html
+    private_key = os.getenv("OG_PRIVATE_KEY")
+    if not private_key:
+        raise ValueError("OG_PRIVATE_KEY not set — get tokens at https://faucet.opengradient.ai")
+    alpha = og.Alpha(private_key=private_key)
 
     print("\n" + "=" * 65)
     print("⚗️  On-Chain ML Inference — Alpha Testnet Demo")
@@ -80,17 +85,22 @@ def run_ml_inference_demo() -> None:
         (
             og.InferenceMode.VANILLA,
             "VANILLA",
-            "No cryptographic proof — fastest and cheapest.",
+            "No cryptographic proof — fastest and cheapest. "
+            "Suitable for non-critical applications.",
         ),
         (
             og.InferenceMode.ZKML,
             "ZKML",
-            "Zero-Knowledge proof — proves the model output is correct.",
+            "Zero-Knowledge proof — proves the model output is correct "
+            "without revealing the model weights. Best for privacy-preserving "
+            "verification.",
         ),
         (
             og.InferenceMode.TEE,
             "TEE",
-            "Trusted Execution Environment — hardware-level attestation.",
+            "Trusted Execution Environment — hardware-level attestation that "
+            "the inference ran in an isolated secure enclave. Best for "
+            "real-time applications needing strong security guarantees.",
         ),
     ]
 
@@ -99,12 +109,13 @@ def run_ml_inference_demo() -> None:
     for mode, mode_name, trust_guarantee in modes:
         logger.info(f"🔄 Running inference in {mode_name} mode...")
         try:
-            result = client.alpha.infer(
+            result = alpha.infer(
                 model_cid=DEMO_MODEL_CID,
                 model_input=DEMO_MODEL_INPUT,
                 inference_mode=mode,
             )
-            tx_hash = getattr(result, "transaction_hash", None)
+            tx_hash = getattr(result, "transaction_hash",
+                             getattr(result, "payment_hash", None))
             results.append(InferenceResult(
                 mode_name=mode_name,
                 description=trust_guarantee,
@@ -116,6 +127,7 @@ def run_ml_inference_demo() -> None:
 
         except Exception as e:
             logger.error(f"❌ {mode_name} inference failed: {e}")
+            logger.warning("   This may be expected if alpha testnet is unreachable.")
             results.append(InferenceResult(
                 mode_name=mode_name,
                 description=trust_guarantee,
@@ -131,6 +143,30 @@ def run_ml_inference_demo() -> None:
         output_str = str(r.model_output)[:22] + "..." if r.model_output else "N/A"
         hash_str = (r.transaction_hash[:18] + "...") if r.transaction_hash else "N/A"
         print(f"{r.mode_name:<10} {output_str:<25} {hash_str:<20}")
+
+    print("\n" + "=" * 65)
+    print("📋 Detailed Results + Trust Guarantees:")
+    print("=" * 65)
+    for r in results:
+        print(f"\n🔷 Mode: {r.mode_name}")
+        print(f"   Output   : {r.model_output}")
+        print(f"   Tx Hash  : {r.transaction_hash or 'N/A'}")
+        if r.transaction_hash:
+            print(f"   Explorer : {OG_EXPLORER_URL}/tx/{r.transaction_hash}")
+        print(f"   Trust    : {r.trust_guarantee}")
+
+    print("\n" + "=" * 65)
+    print("💡 When to use each mode:")
+    print("   VANILLA — prototype/testing, non-critical analytics")
+    print("   ZKML    — privacy-preserving ML, sensitive model weights")
+    print("   TEE     — DeFi, healthcare, real-time verified inference")
+    print("=" * 65)
+    print(
+        "\nℹ️  CLI equivalent:\n"
+        f"   opengradient infer -m {DEMO_MODEL_CID} \\\n"
+        "     --mode VANILLA \\\n"
+        "     --input '{\"num_input1\":[1.0,2.0,3.0],\"num_input2\":10}'"
+    )
 
 
 if __name__ == "__main__":

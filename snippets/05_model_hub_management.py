@@ -9,7 +9,7 @@ Demonstrates the full Model Hub workflow:
 
 The OpenGradient Model Hub is a decentralized model repository built on Walrus
 (decentralized storage). All models uploaded here are instantly available for
-inference on the OpenGradient network via client.alpha.infer().
+inference on the OpenGradient network via og.Alpha.infer().
 
 Model Format Requirements:
   - Models must be in ONNX format (.onnx)
@@ -145,7 +145,8 @@ def run_model_hub_demo() -> None:
     print("=" * 60)
     print(
         "\nℹ️  Next step: use the model CID from the hub to run inference:\n"
-        "   result = client.alpha.infer(\n"
+        "   alpha = og.Alpha(private_key=os.getenv('OG_PRIVATE_KEY'))\n"
+        "   result = alpha.infer(\n"
         "       model_cid='<your_model_cid_from_hub>',\n"
         "       model_input={'num_input1': [1.0, 2.0, 3.0]},\n"
         "       inference_mode=og.InferenceMode.VANILLA\n"

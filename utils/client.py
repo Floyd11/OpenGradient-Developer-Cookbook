@@ -83,7 +83,11 @@ def get_llm() -> og.LLM:
 
 def get_client() -> og.Client:
     """
-    Return the singleton og.Client instance for Model Hub + ML inference.
+    Return the singleton og.Client instance for Model Hub management.
+
+    ⚠️  NOTE: og.Client is for Model Hub (create_model, upload, list_files).
+    For ML inference use get_alpha() which returns og.Alpha.
+    For LLM inference use get_llm() which returns og.LLM.
 
     Requires:
         OG_PRIVATE_KEY (env) — testnet wallet private key
@@ -104,8 +108,35 @@ def get_client() -> og.Client:
             email=email,
             password=password,
         )
-        logger.info("✅ og.Client initialized (Model Hub + ML Inference)")
+        logger.info("✅ og.Client initialized (Model Hub)")
     return _client_instance
+
+
+def get_alpha() -> og.Alpha:
+    """
+    Return a new og.Alpha instance for on-chain ML inference and workflows.
+
+    Per official docs (docs.opengradient.ai/developers/sdk/ml_inference.html):
+    ML inference and Workflows use the STANDALONE og.Alpha class, NOT og.Client.
+
+    Usage:
+        alpha = get_alpha()
+        result = alpha.infer(model_cid=..., model_input=..., inference_mode=...)
+        contract = alpha.new_workflow(...)
+        alpha.run_workflow(contract_address)
+        result = alpha.read_workflow_result(contract_address)
+
+    ⚠️  Alpha testnet only — not yet on official testnet.
+
+    Requires:
+        OG_PRIVATE_KEY (env) — testnet wallet private key
+
+    Returns:
+        og.Alpha: initialized alpha inference client
+    """
+    private_key = _require_env("OG_PRIVATE_KEY")
+    logger.debug("Initializing og.Alpha instance...")
+    return og.Alpha(private_key=private_key)
 
 
 def get_hub() -> og.ModelHub:

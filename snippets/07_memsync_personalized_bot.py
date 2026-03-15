@@ -67,6 +67,14 @@ class MemSyncClient:
     ) -> dict:
         """
         Store a conversation so MemSync can extract memories from it.
+
+        Args:
+            messages: List of {"role": "user"|"assistant", "content": str}
+            thread_id: Unique identifier for this conversation thread
+            agent_id: Identifier for your agent/app
+
+        Returns:
+            API response dict
         """
         resp = requests.post(
             f"{MEMSYNC_BASE_URL}/memories",
@@ -85,6 +93,16 @@ class MemSyncClient:
     def search_memories(self, query: str, limit: int = 5) -> dict:
         """
         Search for memories relevant to a query.
+
+        Args:
+            query: Natural language question or topic to search for
+            limit: Max number of memories to return
+
+        Returns:
+            Dict with keys:
+              user_bio  — auto-generated summary of the user
+              memories  — list of {id, memory, categories, type,
+                           vector_distance, rerank_score}
         """
         resp = requests.post(
             f"{MEMSYNC_BASE_URL}/memories/search",
@@ -98,6 +116,9 @@ class MemSyncClient:
     def get_profile(self) -> dict:
         """
         Retrieve the user's auto-generated profile.
+
+        Returns:
+            Dict with keys: user_bio, profiles, insights
         """
         resp = requests.get(
             f"{MEMSYNC_BASE_URL}/users/profile",
@@ -112,6 +133,14 @@ class PersonalizedChatbot:
     """
     A chatbot that uses MemSync for persistent memory and OpenGradient LLM
     for verifiable, TEE-backed inference.
+
+    Flow per turn:
+      1. Search relevant memories for the user's message
+      2. Retrieve the user's profile (bio + insights)
+      3. Build an enriched system prompt with memory context
+      4. Call og.LLM.chat() — verifiable TEE inference
+      5. Store the conversation for future memory extraction
+      6. Return the response + payment_hash proof
     """
 
     def __init__(self, memsync_api_key: str) -> None:
@@ -122,14 +151,27 @@ class PersonalizedChatbot:
     def _ensure_approval(self) -> None:
         """Ensure Permit2 OPG allowance (called once)."""
         if not self._approved:
-            approval = self.llm.ensure_opg_approval(opg_amount=OPG_APPROVAL_AMOUNT)
-            if approval.tx_hash:
-                logger.info(f"💰 Permit2 tx: {BASESCAN_TX_URL}{approval.tx_hash}")
-            self._approved = True
+            try:
+                approval = self.llm.ensure_opg_approval(opg_amount=OPG_APPROVAL_AMOUNT)
+                if approval.tx_hash:
+                    logger.info(f"💰 Permit2 tx: {BASESCAN_TX_URL}{approval.tx_hash}")
+                self._approved = True
+            except Exception as e:
+                raise RuntimeError(
+                    f"Permit2 OPG approval failed: {e}\n"
+                    f"Check your OPG balance at: https://faucet.opengradient.ai"
+                ) from e
 
     async def chat(self, user_message: str, thread_id: str = THREAD_ID) -> tuple[str, str]:
         """
         Process a user message with memory-enriched context.
+
+        Args:
+            user_message: The user's input
+            thread_id: Conversation thread identifier
+
+        Returns:
+            Tuple of (response_text, payment_hash)
         """
         self._ensure_approval()
 
@@ -282,6 +324,11 @@ async def run_memsync_demo() -> None:
     print("\n" + "=" * 60)
     print("✅ MemSync demo complete!")
     print("=" * 60)
+    print(
+        "\nℹ️  MemSync memory extraction is powered by OpenGradient's TEE-verified LLM.\n"
+        "   Every memory stored has cryptographic proof of how it was generated.\n"
+        "   Full guide: https://memsync.mintlify.app/"
+    )
 
 
 if __name__ == "__main__":
