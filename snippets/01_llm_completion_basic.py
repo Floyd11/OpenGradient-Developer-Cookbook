@@ -1,108 +1,100 @@
 """
-snippets/01_llm_completion_basic.py — Simple Verifiable LLM Completion
+snippets/01_llm_completion_basic.py — Basic LLM Completion (x402 Gateway)
 
-Demonstrates the "Hello World" of OpenGradient: sending a text prompt to a
-TEE-verified LLM via the x402 Gateway and receiving a cryptographic proof
-(payment_hash) that the inference happened inside a Trusted Execution Environment.
+The simplest possible OpenGradient LLM call.
+Sends a single prompt and receives a verifiable completion with a payment_hash
+that proves the inference ran inside a Trusted Execution Environment (TEE).
 
-When to use this pattern:
-  - You need a single, non-conversational text completion
-  - You want the simplest possible integration point
-  - Use llm.chat() instead if you need multi-turn conversations or tool calling
+Key concepts demonstrated:
+  1. og.LLM initialization (uses OG_PRIVATE_KEY for x402 micropayment auth)
+  2. Permit2 allowance approval (one-time per session)
+  3. Single-turn completion with og.TEE_LLM model selection
+  4. payment_hash / transaction_hash — the on-chain proof of inference
 
 Run:
     python snippets/01_llm_completion_basic.py
 """
 
 import asyncio
-import logging
 import os
 import sys
 
-# Allow running from repo root without installing the package
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import opengradient as og
 from dotenv import load_dotenv
 
+import opengradient as og
 from utils.client import get_llm, logger
 
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-# Default model — change to any supported TEE_LLM value below:
+# Model selection — all available TEE_LLM models as of SDK 0.9.3:
 #
-# OpenAI:    og.TEE_LLM.GPT_5 | GPT_5_MINI | GPT_4_1_2025_04_14 | O4_MINI
-# Anthropic: og.TEE_LLM.CLAUDE_OPUS_4_6 | CLAUDE_SONNET_4_6 | CLAUDE_HAIKU_4_5
-# Google:    og.TEE_LLM.GEMINI_3_PRO | GEMINI_2_5_PRO | GEMINI_2_5_FLASH
-# xAI:       og.TEE_LLM.GROK_4 | GROK_4_FAST
+# OpenAI:    og.TEE_LLM.GPT_4_1_2025_04_14 | O4_MINI | GPT_5 | GPT_5_MINI | GPT_5_2
+# Anthropic: og.TEE_LLM.CLAUDE_SONNET_4_5 | CLAUDE_SONNET_4_6 | CLAUDE_HAIKU_4_5
+#                      | CLAUDE_OPUS_4_5 | CLAUDE_OPUS_4_6
+# Google:    og.TEE_LLM.GEMINI_2_5_FLASH | GEMINI_2_5_PRO | GEMINI_2_5_FLASH_LITE
+#                      | GEMINI_3_PRO | GEMINI_3_FLASH
+# xAI:       og.TEE_LLM.GROK_4 | GROK_4_FAST | GROK_4_1_FAST | GROK_4_1_FAST_NON_REASONING
+# ---------------------------------------------------------------------------
 DEFAULT_MODEL: og.TEE_LLM = og.TEE_LLM.GPT_5
-MAX_TOKENS: int = 150
-TEMPERATURE: float = 0.0
-BASESCAN_TX_URL: str = "https://sepolia.basescan.org/tx/"
+
+# Amount of $OPG to approve for Permit2 spending (covers ~5 inference calls)
 OPG_APPROVAL_AMOUNT: float = 5.0
 
-SAMPLE_PROMPT: str = (
-    "Explain in one sentence why verifiable AI inference matters for DeFi protocols."
-)
+# Basescan URL for verifying payment transactions on Base Sepolia
+BASESCAN_TX_URL: str = "https://sepolia.basescan.org/tx/"
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-async def run_completion() -> None:
-    """Run a single verifiable LLM completion and print the result."""
+async def run_basic_completion() -> None:
+    """Demonstrate a single verifiable LLM completion via OpenGradient."""
     llm = get_llm()
 
-    # Step 1: Ensure Permit2 allowance for $OPG payments.
-    # This is a no-op if the allowance is already sufficient.
-    # Call once at app startup — not before every request.
+    # Step 1: Approve $OPG spending via Permit2 (only necessary once per session).
+    # ensure_opg_approval is idempotent — it checks the current allowance first
+    # and only submits an on-chain transaction if the allowance is insufficient.
     logger.info("Checking Permit2 $OPG allowance...")
-    try:
-        approval = llm.ensure_opg_approval(opg_amount=OPG_APPROVAL_AMOUNT)
-        if approval.tx_hash:
-            logger.info(f"💰 Permit2 approval tx: {BASESCAN_TX_URL}{approval.tx_hash}")
-        else:
-            logger.info("💰 Permit2 allowance already sufficient — no transaction needed")
-    except Exception as e:
-        logger.error(f"❌ Permit2 approval failed: {e}")
-        raise
+    approval = llm.ensure_opg_approval(opg_amount=OPG_APPROVAL_AMOUNT)
+    if approval.tx_hash:
+        logger.info(f"💰 New Permit2 approval tx: {BASESCAN_TX_URL}{approval.tx_hash}")
+    else:
+        logger.info("💰 Permit2 allowance already sufficient — skipping")
 
-    # Step 2: Run the verifiable completion
-    logger.info(f"🤖 Sending prompt to {DEFAULT_MODEL.value}...")
-    try:
-        result = await llm.completion(
-            model=DEFAULT_MODEL,
-            prompt=SAMPLE_PROMPT,
-            max_tokens=MAX_TOKENS,
-            temperature=TEMPERATURE,
-        )
-    except ConnectionError as e:
-        logger.error(f"❌ Network error during inference: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Inference failed: {e}")
-        raise
+    # Step 2: Send a single completion prompt.
+    prompt = (
+        "In one sentence, explain what makes OpenGradient's verifiable AI "
+        "inference different from standard cloud LLM APIs."
+    )
 
-    # Step 3: Print results
+    logger.info(f"Sending prompt to {DEFAULT_MODEL.value}...")
+    result = await llm.completion(
+        model=DEFAULT_MODEL,
+        prompt=prompt,
+        max_tokens=200,
+        temperature=0.0,   # Deterministic output for reproducibility
+    )
+
+    # Step 3: Display the result and the on-chain proof.
+    # transaction_hash is the primary field (SDK 0.9.x+).
+    # payment_hash remains available for backwards compatibility.
+    tx_hash = result.transaction_hash or result.payment_hash
+
     print("\n" + "=" * 60)
-    print("✅ Verifiable LLM Completion — Result")
+    print("🧠 OpenGradient Verifiable LLM — Basic Completion")
     print("=" * 60)
-    print(f"🤖 Model      : {DEFAULT_MODEL.value}")
-    print(f"📝 Prompt     : {SAMPLE_PROMPT}")
-    print(f"\n💬 Response:\n  {result.completion_output}")
-    print(f"\n💰 Payment Hash : {result.payment_hash}")
-    print(f"🔗 Verify on-chain: {BASESCAN_TX_URL}{result.payment_hash}")
+    print(f"  Model  : {DEFAULT_MODEL.value}")
+    print(f"  Prompt : {prompt}")
+    print("-" * 60)
+    print(f"  Output : {result.completion_output}")
+    print("-" * 60)
+    print(f"  🔐 Proof  : {BASESCAN_TX_URL}{tx_hash}")
     print("=" * 60)
     print(
-        "\nℹ️  The payment_hash above is your cryptographic proof that this inference\n"
-        "   was processed inside a TEE (Trusted Execution Environment).\n"
-        "   Anyone can verify this on the OpenGradient block explorer:\n"
-        f"   https://explorer.opengradient.ai"
+        "\nℹ️  The URL above is the on-chain proof that this exact model "
+        "received this exact prompt inside a Trusted Execution Environment."
     )
 
 
 if __name__ == "__main__":
-    asyncio.run(run_completion())
+    asyncio.run(run_basic_completion())
