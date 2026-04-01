@@ -29,8 +29,6 @@ from utils.client import logger
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 RPC_URL: str = os.getenv("RPC_URL", "https://sepolia.base.org")
 CHAIN_ID: int = int(os.getenv("CHAIN_ID", "84532"))
 OPG_TOKEN_CONTRACT: str = os.getenv(
@@ -74,7 +72,6 @@ ERC20_ABI: list[dict] = [
     },
 ]
 
-# Uniswap Permit2 contract address (same across all EVM chains)
 PERMIT2_ADDRESS: str = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
 
 

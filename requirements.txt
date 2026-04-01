@@ -1,13 +1,21 @@
-opengradient>=0.1.0
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
+# OpenGradient Developer Cookbook — Python dependencies
+# Python 3.11+ is required (enforced by opengradient >= 0.6.0)
+#
+# Install:
+#   pip install -r requirements.txt
+
+# Core SDK — API stable since 0.9.x
+opengradient>=0.9.0
+
+# Environment variable management
 python-dotenv>=1.0.0
-web3>=6.0.0
-pydantic>=2.0.0
-httpx>=0.27.0
-tenacity>=8.2.0
-requests>=2.31.0
-numpy>=1.26.0
-langchain>=0.2.0
-langchain-community>=0.2.0
-eth-account>=0.11.0
+
+# Blockchain / wallet dependencies (pinned by SDK transitive requirements)
+web3>=7.3.0
+eth-account>=0.13.4
+
+# LLM framework integrations (optional — needed for snippets 11)
+# pip install langgraph langchain-core
+langchain>=0.3.7
+langchain-community>=0.3.7
+langchain-core>=0.3.0

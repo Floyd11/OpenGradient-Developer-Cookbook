@@ -28,13 +28,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import opengradient as og
 from dotenv import load_dotenv
 
-from utils.client import get_client, logger
+from utils.client import logger  # get_client removed: og.Client was deleted in SDK 0.6.0
 
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 # Pre-deployed demo model on OpenGradient's alpha testnet Model Hub
 DEMO_MODEL_CID: str = "QmbUqS93oc4JTLMHwpVxsE39mhNxy6hpf6Py3r9oANr8aZ"
 
@@ -58,10 +55,6 @@ class InferenceResult:
     model_output: object
     transaction_hash: str | None
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def run_ml_inference_demo() -> None:
     """Run the demo model through all three inference modes."""
     # Per official docs: ML inference uses standalone og.Alpha, NOT og.Client
@@ -114,8 +107,8 @@ def run_ml_inference_demo() -> None:
                 model_input=DEMO_MODEL_INPUT,
                 inference_mode=mode,
             )
-            tx_hash = getattr(result, "transaction_hash",
-                             getattr(result, "payment_hash", None))
+            # Support both field names across SDK versions
+            tx_hash = getattr(result, "transaction_hash", None) or getattr(result, "payment_hash", None)
             results.append(InferenceResult(
                 mode_name=mode_name,
                 description=trust_guarantee,
