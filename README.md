@@ -9,7 +9,7 @@ A curated collection of production-ready code snippets, boilerplates, and
 patterns for building applications on the [OpenGradient](https://opengradient.ai)
 platform — the verifiable AI inference network.
 
-> **This cookbook is the foundation for the [OG Helper Telegram Bot](https://t.me/OGHelperBot)
+> **This cookbook is the foundation for the [OG Helper Telegram Bot](https://t.me/OpenGradient_Helper_bot)
 > which serves these examples to developers on demand.**
 
 ---
