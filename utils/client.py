@@ -1,16 +1,19 @@
 """
 utils/client.py — Shared OpenGradient client initialization helpers.
 
-This module provides singleton accessors for both the OpenGradient SDK objects:
-  - og.LLM    : for verifiable LLM inference via x402 Gateway (needs only private key)
-  - og.Client : for Model Hub management + ML inference alpha (needs email + password too)
-  - og.ModelHub: for Model Hub operations only
+This module provides singleton accessors for the OpenGradient SDK objects:
+  - og.LLM     : for verifiable LLM inference via x402 Gateway (needs only private key)
+  - og.Alpha   : for on-chain ML inference and workflows (needs only private key)
+  - og.ModelHub: for Model Hub operations only (needs email + password)
+
+Note: og.Client was removed from the SDK in version 0.6.0. Use the dedicated
+classes above instead — og.LLM, og.Alpha, and og.ModelHub.
 
 All secrets are read from environment variables. A clear ValueError is raised
 if required variables are missing, preventing cryptic downstream errors.
 
 Usage:
-    from utils.client import get_llm, get_client, get_hub, logger
+    from utils.client import get_llm, get_alpha, get_hub, logger
 """
 
 import logging
@@ -23,8 +26,6 @@ from dotenv import load_dotenv
 # Load .env file if present (no-op in production where env vars are set directly)
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Logging Setup
 # ---------------------------------------------------------------------------
 _log_level_str: str = os.getenv("LOG_LEVEL", "INFO").upper()
 _log_level: int = getattr(logging, _log_level_str, logging.INFO)
@@ -39,10 +40,7 @@ logging.basicConfig(
 logger: logging.Logger = logging.getLogger("opengradient.cookbook")
 
 # ---------------------------------------------------------------------------
-# Module-level singletons (lazy initialized)
-# ---------------------------------------------------------------------------
 _llm_instance: og.LLM | None = None
-_client_instance: og.Client | None = None
 _hub_instance: og.ModelHub | None = None
 
 
@@ -81,43 +79,12 @@ def get_llm() -> og.LLM:
     return _llm_instance
 
 
-def get_client() -> og.Client:
-    """
-    Return the singleton og.Client instance for Model Hub management.
-
-    ⚠️  NOTE: og.Client is for Model Hub (create_model, upload, list_files).
-    For ML inference use get_alpha() which returns og.Alpha.
-    For LLM inference use get_llm() which returns og.LLM.
-
-    Requires:
-        OG_PRIVATE_KEY (env) — testnet wallet private key
-        OG_EMAIL       (env) — Model Hub account email
-        OG_PASSWORD    (env) — Model Hub account password
-
-    Returns:
-        og.Client: initialized full client
-    """
-    global _client_instance
-    if _client_instance is None:
-        private_key = _require_env("OG_PRIVATE_KEY")
-        email = _require_env("OG_EMAIL")
-        password = _require_env("OG_PASSWORD")
-        logger.debug("Initializing og.Client singleton...")
-        _client_instance = og.Client(
-            private_key=private_key,
-            email=email,
-            password=password,
-        )
-        logger.info("✅ og.Client initialized (Model Hub)")
-    return _client_instance
-
-
 def get_alpha() -> og.Alpha:
     """
     Return a new og.Alpha instance for on-chain ML inference and workflows.
 
     Per official docs (docs.opengradient.ai/developers/sdk/ml_inference.html):
-    ML inference and Workflows use the STANDALONE og.Alpha class, NOT og.Client.
+    ML inference and Workflows use the STANDALONE og.Alpha class.
 
     Usage:
         alpha = get_alpha()
